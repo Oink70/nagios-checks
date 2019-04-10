@@ -1,0 +1,151 @@
+#!/bin/bash
+
+#
+# return 0 = OK
+# return 1 = WARNING
+# return 2 = CRITICAL
+# return 3 = UNKNOWN
+#
+
+IFSTAT=$(which ifstat)
+if [ -z "${IFSTAT}" ]; then echo "${0} ifstat not found, exiting!"; exit 3; fi
+
+BC=$(which bc)
+if [ -z "${BC}" ]; then echo "${0} bc not found, exiting!"; exit 3; fi
+function bc_expr(){ echo "scale=2;${1}"|${BC}; }
+
+AWK=$(which awk)
+if [ -z "${AWK}" ]; then echo "${0} awk not found, exiting!"; exit 3; fi
+
+#
+# CHECK CONFIG
+# 
+CHECK_TITLE="ifstat"
+OPT_KBIT=""
+OPT_IFACE="eth0"
+OPT_WARN_IN=93750
+OPT_CRIT_IN=112500
+OPT_WARN_OUT=${OPT_WARN_IN}
+OPT_CRIT_OUT=${OPT_CRIT_IN}
+
+function check_usage() {
+	echo " " 1>&2
+	echo "${0} usage: ${0} [-b] [-i <interface>] [-w <warn>] [-c <crit>] ([-W <warn_out>] [-C <crit_out>])" 1>&2
+	echo " " 1>&2
+	echo "  - default warn/crit values are 75%/90% of 1 GBit/s. " 1>&2
+	echo "  - default unit is kb/s. use \"-b\" to switch to kbit/s." 1>&2
+	echo " " 1>&2
+	echo "for more information, see " 1>&2
+	echo "  ${0} --help" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+function check_help() { 
+	echo " " 1>&2
+	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
+	echo " " 1>&2
+	echo "$(basename ${0}) performs bandwidth checks using ifstat(1)"  1>&2
+	echo " " 1>&2
+	echo "Examples: " 1>&2
+	echo "  ${0} -i br0 -w 1024 -c 2048 # check interface \"br0\". >=1024kb/s is warning, >=2048kb/s critical, both in- and outgoing traffic." 1>&2
+	echo "  ${0} -i br0 -W 2048 -C 4096 # check interface \"br0\", >=2048kb/s is warning, >=4096kb/s critical for outgoing, default values for incoming traffic." 1>&2
+	echo "  ${0} -b -i eth0             # check interface \"br0\" using kbit/s as unit and default warning/critical levels." 1>&2
+	echo " " 1>&2
+	echo "Options: " 1>&2
+    echo "    -b              Use kbit/s instead of kb/s" 1>&2
+	echo "    -i <interface>  Specify network interface to monitor" 1>&2
+	echo "    -w <warn>       Warning threshold for incoming traffic" 1>&2
+	echo "    -c <crit>       Critical threshold for incoming traffic" 1>&2
+	echo "    -W <warn_out>   Warning threshold for outgoing traffic (optional, defaults to internal defaults or -w)" 1>&2
+	echo "    -C <crit_out>   Critical threshold for outgoing traffic (optional, defaults to internal values or -c)" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+#
+# parse commandline options
+#
+while getopts "hbi:w:W:c:C:" OPT; do
+	case "${OPT}" in
+		h)
+			check_help
+			;;
+		b)
+			OPT_KBIT="-b"
+
+			# multiply defaults *8 to turn into kbit/s
+			OPT_WARN_IN=$(echo "${OPT_WARN_IN}*8"|${BC})
+			OPT_WARN_OUT=$(echo "${OPT_WARN_OUT}*8"|${BC})
+			
+			OPT_CRIT_IN=$(echo "${OPT_CRIT_IN}*8"|${BC})
+			OPT_CRIT_OUT=$(echo "${OPT_CRIT_OUT}*8"|${BC})
+			;;
+		i)
+			OPT_IFACE="${OPTARG}"
+			;;
+		w)
+			OPT_WARN_IN="${OPTARG}"
+			OPT_WARN_OUT="${OPTARG}"
+			;;
+		W)
+			OPT_WARN_OUT="${OPTARG}"
+			;;
+		c)
+			OPT_CRIT_IN="${OPTARG}"
+			OPT_CRIT_OUT="${OPTARG}"
+			;;
+		C)
+			OPT_CRIT_OUT="${OPTARG}"
+			;;
+		*)
+			check_usage
+			;;
+	esac
+done
+shift $((OPTIND-1))
+
+CHECK_DATA=$(${IFSTAT} ${OPT_KBIT} -i ${OPT_IFACE} 2 1 | tail -n+3)
+IFSTAT_IN=$(echo ${CHECK_DATA}|${AWK} '{print $1}')
+IFSTAT_OUT=$(echo ${CHECK_DATA}|${AWK} '{print $2}')
+
+if [ $(bc_expr "float=2;${IFSTAT_IN}") != "${IFSTAT_IN}" ]; then IFSTAT_IN=0; fi
+if [ $(bc_expr "float=2;${IFSTAT_OUT}") != "${IFSTAT_OUT}" ]; then IFSTAT_OUT=0; fi
+
+CHECK_UNIT="kb/s"
+if [ "${OPT_KBIT}" == "-b" ]; then CHECK_UNIT="kbit/s"; fi
+
+#CHECK_PERFDATA_TEXT="IN: ${IFSTAT_IN} (W:${OPT_WARN_IN}/C:${OPT_CRIT_IN}) OUT: ${IFSTAT_OUT} (W:${OPT_WARN_OUT}/C:${OPT_CRIT_OUT})"
+CHECK_PERFDATA_TEXT="IN: ${IFSTAT_IN} ${CHECK_UNIT}, OUT: ${IFSTAT_OUT} ${CHECK_UNIT}"
+
+# https://nagios-plugins.org/doc/guidelines.html#AEN200
+# 'label'=value[UOM];[warn];[crit];[min];[max]
+CHECK_PERFDATA="${OPT_IFACE}_in=${IFSTAT_IN};${OPT_WARN_IN};${OPT_CRIT_IN};; ${OPT_IFACE}_out=${IFSTAT_OUT};${OPT_WARN_OUT};${OPT_CRIT_OUT};;"
+
+#
+# return 0 = OK
+# return 1 = WARNING
+# return 2 = CRITICAL
+# return 3 = UNKNOWN
+#
+CHECK_STATUS=3
+
+if [ $(bc_expr "${IFSTAT_IN}>=${OPT_CRIT_IN}")  -eq "1" ] || [ $(bc_expr "${IFSTAT_OUT}>=${OPT_CRIT_OUT}") -eq "1" ]; then
+	CHECK_STATUS=2
+	CHECK_STATUS_TEXT="CRIT"
+elif [ $(bc_expr "${IFSTAT_IN}>=${OPT_WARN_IN}") -eq "1" ] || [ $(bc_expr "${IFSTAT_OUT}>=${OPT_WARN_OUT}") -eq "1" ]; then
+	CHECK_STATUS=1
+	CHECK_STATUS_TEXT="WARN"
+else 
+	CHECK_STATUS=0
+	CHECK_STATUS_TEXT="OK"
+fi
+
+#
+# Output result
+# exit with proper code
+#
+echo "${CHECK_TITLE}/${OPT_IFACE} ${CHECK_STATUS_TEXT} - ${CHECK_PERFDATA_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_STATUS}
