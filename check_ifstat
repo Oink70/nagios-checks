@@ -48,7 +48,7 @@ function check_help() {
 	echo " " 1>&2
 	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
 	echo " " 1>&2
-	echo "$(basename ${0}) does bandwidth monitoring using ifstat(1)"  1>&2
+	echo "$(basename ${0}) - bandwidth monitoring using ifstat(1)"  1>&2
 	echo " " 1>&2
 	echo "Examples: " 1>&2
 	echo "  ${0} -i br0 -w 1024 -c 2048 # check interface \"br0\". >=1024kb/s is warning, >=2048kb/s critical, both in- and outgoing traffic." 1>&2
@@ -124,8 +124,16 @@ if [ "${OPT_KBIT}" == "-b" ]; then CHECK_UNIT="kbit/s"; fi
 #CHECK_PERFDATA_TEXT="IN: ${IFSTAT_IN} (W:${OPT_WARN_IN}/C:${OPT_CRIT_IN}) OUT: ${IFSTAT_OUT} (W:${OPT_WARN_OUT}/C:${OPT_CRIT_OUT})"
 CHECK_PERFDATA_TEXT="IN: ${IFSTAT_IN}${CHECK_UNIT}, OUT: ${IFSTAT_OUT}${CHECK_UNIT}"
 
+#
 # https://nagios-plugins.org/doc/guidelines.html#AEN200
 # 'label'=value[UOM];[warn];[crit];[min];[max]
+# UOM (unit of measurement) is one of:
+#    no unit specified - assume a number (int or float) of things (eg, users, processes, load averages)
+#    s - seconds (also us, ms)
+#    % - percentage
+#    B - bytes (also KB, MB, TB)
+#    c - a continous counter (such as bytes transmitted on an interface)
+#
 CHECK_PERFDATA="${OPT_IFACE}_in=${IFSTAT_IN};${OPT_WARN_IN};${OPT_CRIT_IN};; ${OPT_IFACE}_out=${IFSTAT_OUT};${OPT_WARN_OUT};${OPT_CRIT_OUT};;"
 
 #
