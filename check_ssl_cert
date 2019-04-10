@@ -29,7 +29,7 @@ OPT_PORT=443
 
 function check_usage() {
 	echo " " 1>&2
-	echo "${0} usage: ${0} [-H <hostname>] [-w <warn>] [-c <crit>]" 1>&2
+	echo "${0} usage: ${0} [-H <hostname>] [-a <ipv4 address] [-p <port>] [-w <warn>] [-c <crit>]" 1>&2
 	echo " " 1>&2
 	echo "  - default warn/crit values are 30 days/14 days before cert expiration." 1>&2
 	echo " " 1>&2
@@ -52,6 +52,7 @@ function check_help() {
 	echo " " 1>&2
 	echo "Options: " 1>&2
 	echo "    -H <hostname>   Hostname to connect to" 1>&2
+	echo "    -a <ipv4_addr>  Force hostname to resolve to this (SNI)" 1>&2
 	echo "    -p <port>       Port number to connect to (default 443)" 1>&2
 	echo "    -w <warn_sec>   Warning threshold if certificate expiry is closer than this many seconds (default 30 days)" 1>&2
 	echo "    -c <crit_sec>   Critical threshold if certificate expiry is closer than this many seconds (default 14 days)" 1>&2
