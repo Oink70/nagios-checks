@@ -81,11 +81,11 @@ while getopts "hbi:w:W:c:C:" OPT; do
 			OPT_KBIT="-b"
 
 			# multiply defaults *8 to turn into kbit/s
-			OPT_WARN_IN=$(echo "${OPT_WARN_IN}*8"|${BC})
-			OPT_WARN_OUT=$(echo "${OPT_WARN_OUT}*8"|${BC})
+			OPT_WARN_IN=$(bc_expr "${OPT_WARN_IN}*8")
+			OPT_WARN_OUT=$(bc_expr "${OPT_WARN_OUT}*8")
 			
-			OPT_CRIT_IN=$(echo "${OPT_CRIT_IN}*8"|${BC})
-			OPT_CRIT_OUT=$(echo "${OPT_CRIT_OUT}*8"|${BC})
+			OPT_CRIT_IN=$(bc_expr "${OPT_CRIT_IN}*8")
+			OPT_CRIT_OUT=$(bc_expr "${OPT_CRIT_OUT}*8")
 			;;
 		i)
 			OPT_IFACE="${OPTARG}"
@@ -122,7 +122,7 @@ CHECK_UNIT="kb/s"
 if [ "${OPT_KBIT}" == "-b" ]; then CHECK_UNIT="kbit/s"; fi
 
 #CHECK_PERFDATA_TEXT="IN: ${IFSTAT_IN} (W:${OPT_WARN_IN}/C:${OPT_CRIT_IN}) OUT: ${IFSTAT_OUT} (W:${OPT_WARN_OUT}/C:${OPT_CRIT_OUT})"
-CHECK_PERFDATA_TEXT="IN: ${IFSTAT_IN} ${CHECK_UNIT}, OUT: ${IFSTAT_OUT} ${CHECK_UNIT}"
+CHECK_PERFDATA_TEXT="IN: ${IFSTAT_IN}${CHECK_UNIT}, OUT: ${IFSTAT_OUT}${CHECK_UNIT}"
 
 # https://nagios-plugins.org/doc/guidelines.html#AEN200
 # 'label'=value[UOM];[warn];[crit];[min];[max]
