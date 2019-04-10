@@ -1,0 +1,136 @@
+#!/bin/bash
+
+#
+# return 0 = OK
+# return 1 = WARNING
+# return 2 = CRITICAL
+# return 3 = UNKNOWN
+#
+
+CURL=$(which curl)
+CURL_DEFAULT_OPTS="-v"
+if [ -z "${CURL}" ]; then echo "${0} curl not found, exiting!"; exit 3; fi
+
+BC=$(which bc)
+if [ -z "${BC}" ]; then echo "${0} bc not found, exiting!"; exit 3; fi
+function bc_expr(){ echo "scale=2;${1}"|${BC}; }
+
+AWK=$(which awk)
+if [ -z "${AWK}" ]; then echo "${0} awk not found, exiting!"; exit 3; fi
+
+#
+# CHECK CONFIG
+# 
+CHECK_TITLE="ssl_cert"
+OPT_WARN="2592000" # 30 days
+OPT_CRIT="1209600" # 14 days
+OPT_HOSTNAME="localhost"
+OPT_PORT=443
+
+function check_usage() {
+	echo " " 1>&2
+	echo "${0} usage: ${0} [-H <hostname>] [-w <warn>] [-c <crit>]" 1>&2
+	echo " " 1>&2
+	echo "  - default warn/crit values are 30 days/14 days before cert expiration." 1>&2
+	echo " " 1>&2
+	echo "for more information, see " 1>&2
+	echo "  ${0} --help" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+function check_help() { 
+	echo " " 1>&2
+	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
+	echo " " 1>&2
+	echo "$(basename ${0}) - checks ssl certificates for CN and expiry using curl(1)"  1>&2
+	echo " " 1>&2
+	echo "Examples: " 1>&2
+	echo "  ${0} -H www.acme.com -p 4443            # check host \"www.acme.com\" using 30 days warn/14 days crit thresholds." 2>&1
+	echo "  ${0} -H www.acme.com -w 864000 -c 86400 # check host \"www.acme.com\" using 10 days warn/1 day crit thresholds." 2>&1
+	echo " " 1>&2
+	echo "Options: " 1>&2
+	echo "    -H <hostname>   Hostname to connect to" 1>&2
+	echo "    -p <port>       Port number to connect to (default 443)" 1>&2
+	echo "    -w <warn_sec>   Warning threshold if certificate expiry is closer than this many seconds (default 30 days)" 1>&2
+	echo "    -c <crit_sec>   Critical threshold if certificate expiry is closer than this many seconds (default 14 days)" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+#
+# parse commandline options
+#
+while getopts "hH:p:a:w:c:" OPT; do
+	case "${OPT}" in
+		h)
+			check_help
+			;;
+		p)
+			OPT_PORT="${OPTARG}"
+			;;
+		H)
+			OPT_HOSTNAME="${OPTARG}"
+			OPT_ADDR=$(host -4 -t A ${OPT_HOSTNAME} | ${AWK} '{print $4}')
+			OPT_RESOLVE="--resolve ${OPT_HOSTNAME}:${OPT_PORT}:${OPT_ADDR}"
+			;;
+		a)
+			OPT_ADDR="${OPTARG}"
+			OPT_RESOLVE="--resolve ${OPT_HOSTNAME}:${OPT_PORT}:${OPT_ADDR}"
+			;;
+		*)
+			check_usage
+			;;
+	esac
+done
+shift $((OPTIND-1))
+
+DATE_NOW=$(date +%s)
+
+CHECK_EXPIRY_HUMAN=$(${CURL} ${CURL_DEFAULT_OPTS} ${OPT_RESOLVE} https://${OPT_HOSTNAME}:${OPT_PORT}/ 2>&1 |grep "expire date"|awk '{print $4" "$5" "$7" "$6" "$8}')
+CHECK_EXPIRY=$(date -d "${CHECK_EXPIRY_HUMAN}" +%s)
+CHECK_CN_MATCH=$(${CURL} ${CURL_DEFAULT_OPTS} ${OPT_RESOLVE} https://${OPT_HOSTNAME}:${OPT_PORT}/ 2>&1 |grep subjectAltName|grep matched >/dev/null && echo 1 || echo 0)
+CHECK_CN_HUMAN="CommonName: $(${CURL} ${CURL_DEFAULT_OPTS} ${OPT_RESOLVE} https://${OPT_HOSTNAME}:${OPT_PORT}/ 2>&1 |grep subjectAltName|grep matched >/dev/null && echo matches || echo does not match)"
+
+#
+# https://nagios-plugins.org/doc/guidelines.html#AEN200
+# 'label'=value[UOM];[warn];[crit];[min];[max]
+# UOM (unit of measurement) is one of:
+#    no unit specified - assume a number (int or float) of things (eg, users, processes, load averages)
+#    s - seconds (also us, ms)
+#    % - percentage
+#    B - bytes (also KB, MB, TB)
+#    c - a continous counter (such as bytes transmitted on an interface)
+#
+REMAINING=$(bc_expr ${CHECK_EXPIRY}-${DATE_NOW})
+REMAINING_HUMAN=$(printf '%dd:%dh:%dm:%ds\n' $(($REMAINING/86400)) $(($REMAINING%86400/3600)) $(($REMAINING%3600/60)) $(($REMAINING%60)))
+CHECK_PERFDATA_TEXT="Expires on: ${CHECK_EXPIRY_HUMAN}, remaining: ${REMAINING_HUMAN}, ${CHECK_CN_HUMAN}"
+CHECK_PERFDATA="expires_on=${CHECK_EXPIRY} remaining=${REMAINING}s;${OPT_WARN};${OPT_CRIT};; cn_match=${CHECK_CN_MATCH}"
+
+#
+# return 0 = OK
+# return 1 = WARNING
+# return 2 = CRITICAL
+# return 3 = UNKNOWN
+#
+CHECK_STATUS=3
+
+if [ "${REMAINING}" -le "${OPT_CRIT}" ] || [ "${CHECK_CN_MATCH}" != "1" ]; then
+	CHECK_STATUS=2
+	CHECK_STATUS_TEXT="CRIT"
+elif [ "${REMAINING}" -le "${OPT_WARN}" ]; then
+	CHECK_STATUS=1
+	CHECK_STATUS_TEXT="WARN"
+else 
+	CHECK_STATUS=0
+	CHECK_STATUS_TEXT="OK"
+fi
+
+#
+# Output result
+# exit with proper code
+#
+echo "${CHECK_TITLE}/${OPT_HOSTNAME}/${OPT_ADDR} ${CHECK_STATUS_TEXT} - ${CHECK_PERFDATA_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_STATUS}
