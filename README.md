@@ -23,3 +23,23 @@ Options:
     -W <warn_out>   Warning threshold for outgoing traffic (optional, defaults to internal defaults or -w)
     -C <crit_out>   Critical threshold for outgoing traffic (optional, defaults to internal values or -c)
 ```
+
+## `check_ssl_cert`
+
+Requires `bc`, `awk` and `curl` to be installed.
+
+```
+check_ssl_cert usage: ./check_ssl_cert [OPTION ...]
+ 
+check_ssl_cert - checks ssl certificates for CN and expiry using curl(1)
+ 
+Examples: 
+  ./check_ssl_cert -H www.acme.com -p 4443            # check host "www.acme.com" using 30 days warn/14 days crit thresholds.
+  ./check_ssl_cert -H www.acme.com -w 864000 -c 86400 # check host "www.acme.com" using 10 days warn/1 day crit thresholds.
+ 
+Options: 
+    -H <hostname>   Hostname to connect to
+    -p <port>       Port number to connect to (default 443)
+    -w <warn_sec>   Warning threshold if certificate expiry is closer than this many seconds (default 30 days)
+    -c <crit_sec>   Critical threshold if certificate expiry is closer than this many seconds (default 14 days)
+```
