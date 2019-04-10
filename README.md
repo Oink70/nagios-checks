@@ -3,7 +3,7 @@ Various Nagios checks
 
 ## `check_ifstat`
 
-Uses `ifstat(1)` to monitor interface bandwidth.
+Requires `ifstat`, `bc` and `awk` to be installed.
 
 ```
 check_ifstat usage: ./check_ifstat [OPTION ...]
