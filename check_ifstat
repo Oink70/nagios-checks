@@ -23,6 +23,8 @@ if [ -z "${AWK}" ]; then echo "${0} awk not found, exiting!"; exit 3; fi
 CHECK_TITLE="ifstat"
 OPT_KBIT=""
 OPT_IFACE="eth0"
+
+# roughly 75% and 90% of a gbit
 OPT_WARN_IN=93750
 OPT_CRIT_IN=112500
 OPT_WARN_OUT=${OPT_WARN_IN}
@@ -46,12 +48,14 @@ function check_help() {
 	echo " " 1>&2
 	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
 	echo " " 1>&2
-	echo "$(basename ${0}) performs bandwidth checks using ifstat(1)"  1>&2
+	echo "$(basename ${0}) does bandwidth monitoring using ifstat(1)"  1>&2
 	echo " " 1>&2
 	echo "Examples: " 1>&2
 	echo "  ${0} -i br0 -w 1024 -c 2048 # check interface \"br0\". >=1024kb/s is warning, >=2048kb/s critical, both in- and outgoing traffic." 1>&2
 	echo "  ${0} -i br0 -W 2048 -C 4096 # check interface \"br0\", >=2048kb/s is warning, >=4096kb/s critical for outgoing, default values for incoming traffic." 1>&2
 	echo "  ${0} -b -i eth0             # check interface \"br0\" using kbit/s as unit and default warning/critical levels." 1>&2
+	echo " " 1>&2
+	echo "Per default, eth0 will be monitored. Warning threshold is roughly 75% of 1Gbit/s, critical threshold 90%." 1>&2
 	echo " " 1>&2
 	echo "Options: " 1>&2
     echo "    -b              Use kbit/s instead of kb/s" 1>&2
