@@ -1,6 +1,29 @@
 # nagios-checks
 Various Nagios checks
 
+## `check_dns_record`
+
+Requires `host`, `ifconfig` and `awk` to be installed.
+
+```
+check_dns_record usage: ./check_dns_record [OPTION ...]
+ 
+check_dns_record - checks a DNS record of given type against an expected result
+ 
+Examples: 
+  ./check_dns_record -r www.acme.com -i eth0                  # check host "www.acme.com" against the primary address of interface eth0
+  ./check_dns_record -r www.acme.com -t AAAA -a 2a04:1:2:3::1 # check host "www.acme.com" against the given IPv6 address, using AAAA
+ 
+Options: 
+    -r <record>      DNS record to resolve
+    -e <expectation> Expected result
+    -i <interface>   Primary address of interface to use as expected result (use with -t AAAA for IPv6)
+    -t <record_type> Record type to check for (defaults to A)
+    -w               WARN only when DNS/Address mismatches (default: CRIT)
+ 
+NOTE: '-i' does not reliably work with '-t AAAA'/IPv6!
+```
+
 ## `check_ifstat`
 
 Requires `ifstat`, `bc` and `awk` to be installed.
