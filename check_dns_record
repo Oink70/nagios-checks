@@ -36,7 +36,7 @@ function check_help() {
 	echo " " 1>&2
 	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
 	echo " " 1>&2
-	echo "$(basename ${0}) - checks a list of DNS names against local public IP"  1>&2
+	echo "$(basename ${0}) - checks a DNS record of given type against an expected result" 2>&1
 	echo " " 1>&2
 	echo "Examples: " 1>&2
 	echo "  ${0} -r www.acme.com -i eth0                  # check host \"www.acme.com\" against the primary address of interface eth0" 2>&1
