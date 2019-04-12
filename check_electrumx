@@ -56,7 +56,7 @@ function check_help() {
 	echo "    -C <height_distance_crit> Height distance at which CRIT is raised (default 5)"
 	echo " " 1>&2
 	echo "Notes: " 1>&2
-	echo "    - The URL given for '-r' MUST return a plain, unformatted number, i.e. Iquidus /api/getblockcount API call" 1&>2
+	echo "    - The URL given for '-r' MUST return a plain, unformatted number, i.e. Iquidus /api/getblockcount API call" 1>&2
 	echo "    - Uptime is compared against full days only, rest of ElectrumX uptime data is disregarded" 1>&2
 	echo " " 1>&2
 
