@@ -24,6 +24,31 @@ Options:
 NOTE: '-i' does not reliably work with '-t AAAA'/IPv6!
 ```
 
+## `check_electrumx`
+
+Needs `awk`, `bc`, `curl`, `jq`, `tr` and `electrumx_rpc` installed.
+
+```
+check_electrumx usage: ./check_electrumx [OPTION ...]
+ 
+check_electrumx - checks an ElectrumX server for its status
+ 
+Examples: 
+  ./check_electrumx -H 10.0.0.2 -p 8012 -r https://explorer.somecoin.org/get/current_height # checks the electrum server at 10.0.0.2:8012 using the explorer api url specified with -r
+ 
+Options: 
+    -H <host>                 ElectrumX host to check (default: 127.0.0.1)
+    -p <port>                 Port number to connect to (default: 10000)
+    -r <remote_height_url>    URL to get remote height from (defaults to iquidus api call on 127.0.0.1:8080)
+    -w <uptime_sec_warn>      Uptime in seconds after which WARN status is raised (default: 60 days)
+    -c <uptime_sec_crit>      Uptime in seconds after which CRIT status is raised (default: 75 days)
+    -W <height_distance_warn> Height distance at which WARN is raised (default: 3)
+    -C <height_distance_crit> Height distance at which CRIT is raised (default 5)
+ 
+Notes: 
+    - Uptime is compared against full days only, rest of ElectrumX uptime data is disregarded
+```
+
 ## `check_ifstat`
 
 Requires `ifstat`, `bc` and `awk` to be installed.
