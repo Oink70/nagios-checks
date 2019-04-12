@@ -1,0 +1,150 @@
+#!/bin/bash -x
+
+# 
+# NAGIOS RETURN CODES
+# -------------------
+#
+# 0: OK
+# 1: WARNING
+# 2: CRITICAL
+# 3: UNKNOWN
+#
+# NAGIOS OUTPUT FORMAT
+# --------------------
+# 
+# "check_name check_status - check_text|check_perfdata"
+#
+
+# needed binaries
+AWK=$(which awk || echo "${0} \"awk\" not found, exiting!"; exit 3)
+BC=$(which bc || echo "${0} \"bc\" not found, exiting!"; exit 3)
+CURL=$(which curl || echo "${0} \"curl\" not found, exiting!"; exit 3)
+JQ=$(which jq || echo "${0} \"jq\" not found, exiting!"; exit 3)
+TR=$(which tr || echo "${0} \"tr\" not found, exiting!"; exit 3)
+RPC=$(which electrumx_rpc || echo "${0} \"electrumx_rpc\" not found, exiting!"; exit 3)
+
+#
+# usage and help
+#
+function check_usage() {
+	echo " " 1>&2
+	echo "${0} usage: ${0} [-H <host>] [-p <port>] [-r <remote_height_url>] [-w <uptime_sec_warn>] [-c <uptime_sec_crit>" 1>&2
+	echo " " 1>&2
+	echo "for more information, see " 1>&2
+	echo "  ${0} -h" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+function check_help() { 
+	echo " " 1>&2
+	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
+	echo " " 1>&2
+	echo "$(basename ${0}) - checks an ElectrumX server for its status" 1>&2
+	echo " " 1>&2
+	echo "Examples: " 1>&2
+	echo "  ${0} -H 10.0.0.2 -p 8012 -r "https://explorer.somecoin.org/get/current_height" # checks the electrum server at 10.0.0.2:8012 using the explorer api url specified with -r" 2>&1
+	echo " " 1>&2
+	echo "Options: " 1>&2
+	echo "    -H <host> ElectrumX host to check (default: 127.0.0.1)" 1>&2
+	echo "    -p <port> Port number to connect to (default: 10000)" 1>&2
+	echo "    -r <remote_height_url> URL to get remote height from (defaults to iquidus api call on 127.0.0.1:8080)" 1>&2
+	echo " " 1>&2
+	echo "Notes: " 1>&2
+	echo "    - The URL given for '-r' MUST return a plain, unformatted number. No JSON!" 2>&1
+	echo "    - Uptime is compared against full days only, rest of ElectrumX uptime data is disregarded." 2>&1
+	echo " " 1>&2
+
+	exit 3;
+}
+
+
+#
+# parse commandline options
+#
+
+OPT_HOST="127.0.0.1"
+OPT_PORT=10000
+OPT_REMOTE_HEIGHT="http://127.0.0.1:8080/api/getblockcount"
+OPT_WARN="5184000" # 60 days
+OPT_CRIT="6480000" # 75 days
+
+while getopts "hH:p:r:w:c:" OPT; do
+	case "${OPT}" in
+		h)
+			check_help
+			;;
+		H)
+			OPT_HOSTNAME="${OPTARG}"
+			;;
+		p)
+			OPT_PORT="${OPTARG}"
+			;;
+		r)
+			OPT_REMOTE_HEIGHT="${OPTARG}"
+			;;
+		w)
+			OPT_WARN="${OPTARG}"
+			;;
+		c)
+			OPT_CRIT="${OPTARG}"
+			;;
+		*)
+			check_usage
+			;;
+	esac
+done
+shift $((OPTIND-1))
+
+
+# collect data
+
+EL_RPCDATA=$(${RPC} getinfo)
+EL_HEIGHT=$(echo ${EL_RPCDATA} | ${JQ} -r .db_height)
+EL_UPTIME=$(echo ${EL_RPCDATA} | ${JQ} -r .uptime)
+EL_UPTIME_DAYS=$(echo ${EL_UPTIME} | ${AWK} '{print $1}' | sed s/d//)
+EL_ERRORS=$(echo ${EL_RPCDATA} | ${JQ} -r .errors)
+EL_SESSIONS=$(echo ${EL_RPCDATA} | ${JQ} -r .sessions)
+EL_VERSION=$(echo ${EL_RPCDATA} | ${JQ} -r .version)
+
+DATE_START=$(date -d "${EL_UPTIME_DAYS} days ago" +%s)
+DATE_NOW=$(date +%s)
+DATE_FLAG_WARN=$(echo "(${DATE_START}+${OPT_WARN})<=${DATE_NOW}" | ${BC})
+DATE_FLAG_CRIT=$(echo "(${DATE_START}+${OPT_CRIT})<=${DATE_NOW}" | ${BC})
+
+HEIGHT_REMOTE=$(${CURL} --silent "${OPT_REMOTE_HEIGHT}")
+HEIGHT_DISTANCE=$(echo "${EL_HEIGHT}-${HEIGHT_REMOTE}" | ${BC} | ${TR} -d -)
+
+# prepare output
+CHECK_NAME="ElectrumX"
+CHECK_TEXT="Uptime: ${EL_UPTIME}, Height: ${EL_HEIGHT}, Remote Height: ${HEIGHT_REMOTE}, Distance: ${HEIGHT_DISTANCE}, Sessions: ${EL_SESSIONS}, Errors: ${EL_ERRORS}, Version: ${EL_VERSION}"
+CHECK_PERFDATA="height_local=${EL_HEIGHT} height_remote=${HEIGHT_REMOTE} height_distance=${HEIGHT_DISTANCE} uptime=${EL_UPTIME} sessions=${EL_SESSIONS} errors=${EL_ERRORS} version=${EL_VERSION}"
+
+CHECK_STATUS="UNKNOWN"
+CHECK_RETURN=3
+
+# determine status
+if [ "${EL_HEIGHT}" -eq "${HEIGHT_REMOTE}" ] && [ "${DATE_FLAG_WARN}" -eq "0" ] && [ "${DATE_FLAG_CRIT}" -eq "0" ]; then
+    CHECK_STATUS="OK"
+    CHECK_RETURN=0
+else
+	# distance < 3 and date warn = WARN
+	if [ "${HEIGHT_DISTANCE}" -lt "3" ] || [ "${DATE_FLAG_WARN}" -eq "1" ]; then
+		CHECK_STATUS="WARN"
+		CHECK_RETURN=1
+	fi
+
+	# distance > 3 and date crit = CRIT
+	if [ "${HEIGHT_DISTANCE}" -gt "3" ] || [ "${DATE_FLAG_CRIT}" -eq "1" ]; then
+    	CHECK_STATUS="CRIT"
+    	CHECK_RETURN=2
+	fi
+fi
+
+# output
+echo -n "${CHECK_NAME}/${OPT_HOST}:${OPT_PORT} ${CHECK_STATUS} - ${CHECK_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_RETURN}
+
+# EOF
+
