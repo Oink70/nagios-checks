@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 # 
 # NAGIOS RETURN CODES
@@ -47,13 +47,17 @@ function check_help() {
 	echo "  ${0} -H 10.0.0.2 -p 8012 -r "https://explorer.somecoin.org/get/current_height" # checks the electrum server at 10.0.0.2:8012 using the explorer api url specified with -r" 2>&1
 	echo " " 1>&2
 	echo "Options: " 1>&2
-	echo "    -H <host> ElectrumX host to check (default: 127.0.0.1)" 1>&2
-	echo "    -p <port> Port number to connect to (default: 10000)" 1>&2
-	echo "    -r <remote_height_url> URL to get remote height from (defaults to iquidus api call on 127.0.0.1:8080)" 1>&2
+	echo "    -H <host>                 ElectrumX host to check (default: 127.0.0.1)" 1>&2
+	echo "    -p <port>                 Port number to connect to (default: 10000)" 1>&2
+	echo "    -r <remote_height_url>    URL to get remote height from (defaults to iquidus api call on 127.0.0.1:8080)" 1>&2
+	echo "    -w <uptime_sec_warn>      Uptime in seconds after which WARN status is raised (default: 60 days)" 1>&2
+	echo "    -c <uptime_sec_crit>      Uptime in seconds after which CRIT status is raised (default: 75 days)" 1>&2
+	echo "    -W <height_distance_warn> Height distance at which WARN is raised (default: 3)" 1>&2
+	echo "    -C <height_distance_crit> Height distance at which CRIT is raised (default 5)"
 	echo " " 1>&2
 	echo "Notes: " 1>&2
-	echo "    - The URL given for '-r' MUST return a plain, unformatted number. No JSON!" 2>&1
-	echo "    - Uptime is compared against full days only, rest of ElectrumX uptime data is disregarded." 2>&1
+	echo "    - The URL given for '-r' MUST return a plain, unformatted number, i.e. Iquidus /api/getblockcount API call" 1&>2
+	echo "    - Uptime is compared against full days only, rest of ElectrumX uptime data is disregarded" 1>&2
 	echo " " 1>&2
 
 	exit 3;
@@ -69,8 +73,10 @@ OPT_PORT=10000
 OPT_REMOTE_HEIGHT="http://127.0.0.1:8080/api/getblockcount"
 OPT_WARN="5184000" # 60 days
 OPT_CRIT="6480000" # 75 days
+OPT_DISTANCE_WARN=3
+OPT_DISTANCE_CRIT=5
 
-while getopts "hH:p:r:w:c:" OPT; do
+while getopts "hH:p:r:w:c:W:C:" OPT; do
 	case "${OPT}" in
 		h)
 			check_help
@@ -89,6 +95,12 @@ while getopts "hH:p:r:w:c:" OPT; do
 			;;
 		c)
 			OPT_CRIT="${OPTARG}"
+			;;
+		W)
+			OPT_DISTANCE_WARN="${OPTARG}"
+			;;
+		C)
+			OPT_DISTANCE_CRIT="${OPTARG}"
 			;;
 		*)
 			check_usage
@@ -118,8 +130,17 @@ HEIGHT_DISTANCE=$(echo "${EL_HEIGHT}-${HEIGHT_REMOTE}" | ${BC} | ${TR} -d -)
 
 # prepare output
 CHECK_NAME="ElectrumX"
-CHECK_TEXT="Uptime: ${EL_UPTIME}, Height: ${EL_HEIGHT}, Remote Height: ${HEIGHT_REMOTE}, Distance: ${HEIGHT_DISTANCE}, Sessions: ${EL_SESSIONS}, Errors: ${EL_ERRORS}, Version: ${EL_VERSION}"
-CHECK_PERFDATA="height_local=${EL_HEIGHT} height_remote=${HEIGHT_REMOTE} height_distance=${HEIGHT_DISTANCE} uptime=${EL_UPTIME} sessions=${EL_SESSIONS} errors=${EL_ERRORS} version=${EL_VERSION}"
+
+CHECK_TEXT="Height: ${EL_HEIGHT}, Remote Height: ${HEIGHT_REMOTE}, Distance: ${HEIGHT_DISTANCE}, Sessions: ${EL_SESSIONS}, Errors: ${EL_ERRORS}, Version: ${EL_VERSION}, Uptime: ${EL_UPTIME}"
+CHECK_TEXT_UPTIME=", Uptime: OK"
+if [ "${DATE_FLAG_WARN}" == "1" ]; then
+	CHECK_TEXT_UPTIME=", Uptime: WARN"
+elif [ "${DATE_FLAG_CRIT}" == "1" ]; then	
+	CHECK_TEXT_UPTIME=", Uptime: CRIT"
+fi
+CHECK_TEXT="${CHECK_TEXT}${CHECK_TEXT_UPTIME}"
+
+CHECK_PERFDATA="height_local=${EL_HEIGHT} height_remote=${HEIGHT_REMOTE} height_distance=${HEIGHT_DISTANCE} uptime=\"${EL_UPTIME}\" uptime_warn=${DATE_FLAG_WARN} uptime_crit=${DATE_FLAG_CRIT} sessions=${EL_SESSIONS} errors=${EL_ERRORS} version=\"${EL_VERSION}\""
 
 CHECK_STATUS="UNKNOWN"
 CHECK_RETURN=3
@@ -129,14 +150,12 @@ if [ "${EL_HEIGHT}" -eq "${HEIGHT_REMOTE}" ] && [ "${DATE_FLAG_WARN}" -eq "0" ] 
     CHECK_STATUS="OK"
     CHECK_RETURN=0
 else
-	# distance < 3 and date warn = WARN
-	if [ "${HEIGHT_DISTANCE}" -lt "3" ] || [ "${DATE_FLAG_WARN}" -eq "1" ]; then
+	if [ "${HEIGHT_DISTANCE}" -le "${OPT_DISTANCE_WARN}" ] || [ "${DATE_FLAG_WARN}" -eq "1" ]; then
 		CHECK_STATUS="WARN"
 		CHECK_RETURN=1
 	fi
 
-	# distance > 3 and date crit = CRIT
-	if [ "${HEIGHT_DISTANCE}" -gt "3" ] || [ "${DATE_FLAG_CRIT}" -eq "1" ]; then
+	if [ "${HEIGHT_DISTANCE}" -ge "${OPT_DISTANCE_CRIT}" ] || [ "${DATE_FLAG_CRIT}" -eq "1" ]; then
     	CHECK_STATUS="CRIT"
     	CHECK_RETURN=2
 	fi
