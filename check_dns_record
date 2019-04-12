@@ -1,0 +1,141 @@
+#!/bin/bash
+
+#
+# return 0 = OK
+# return 1 = WARNING
+# return 2 = CRITICAL
+# return 3 = UNKNOWN
+#
+
+AWK=$(which awk || echo "${0} 'awk' not found, exiting!"; exit 3)
+HOST=$(which host || echo "${0} 'host' not found, exiting!"; exit 3)
+IFCONFIG=$(test -x /sbin/ifconfig && echo "/sbin/ifconfig" || echo "${0} 'ifconfig' not found, exiting!"; exit 3)
+
+
+#
+# CHECK CONFIG
+# 
+CHECK_TITLE="check_dns_record"
+OPT_RECORD_TYPE="A"
+OPT_INTERFACE=""
+OPT_EXPECTATION="127.0.0.1"
+OPT_WARN=0
+
+function check_usage() {
+	echo " " 1>&2
+	echo "${0} usage: ${0} [-H <hostname>] [-i <interface>] ([-a <address>]" 1>&2
+	echo " " 1>&2
+	echo "for more information, see " 1>&2
+	echo "  ${0} --help" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+function check_help() { 
+	echo " " 1>&2
+	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
+	echo " " 1>&2
+	echo "$(basename ${0}) - checks a list of DNS names against local public IP"  1>&2
+	echo " " 1>&2
+	echo "Examples: " 1>&2
+	echo "  ${0} -r www.acme.com -i eth0                  # check host \"www.acme.com\" against the primary address of interface eth0" 2>&1
+	echo "  ${0} -r www.acme.com -t AAAA -a 2a04:1:2:3::1 # check host \"www.acme.com\" against the given IPv6 address, using AAAA" 2>&1
+	echo " " 1>&2
+	echo "Options: " 1>&2
+	echo "    -r <record>      DNS record to resolve" 1>&2
+	echo "    -e <expectation> Expected result" 1>&2
+	echo "    -i <interface>   Primary address of interface to use as expected result (use with -t AAAA for IPv6)" 1>&2
+	echo "    -t <record_type> Record type to check for (defaults to A)" 1>&2
+	echo "    -w               WARN only when DNS/Address mismatches (default: CRIT)" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+#
+# parse commandline options
+#
+while getopts "hr:i:e:t:s:w" OPT; do
+	case "${OPT}" in
+		h)
+			check_help
+			;;
+		r)
+			OPT_RECORD="${OPTARG}"
+			;;
+		i)
+			OPT_INTERFACE="${OPTARG}"
+			OPT_EXPECTATION=$(${IFCONFIG} ${OPT_INTERFACE} | grep 'inet ' | xargs echo | cut -d" " -f2)
+			;;
+		e)
+			OPT_EXPECTATION="${OPTARG}"
+			;;
+		t)
+			OPT_RECORD_TYPE="${OPTARG}"
+			;;
+		s)
+			OPT_DNS_SERVER="${OPTARG}"
+			;;
+		w)
+			OPT_WARN=1
+			;;
+		*)
+			check_usage
+			;;
+	esac
+done
+shift $((OPTIND-1))
+
+if [ "${OPT_RECORD_TYPE}" == "AAAA" ]; then
+	CHECK_DATA=$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER}|${AWK} '{print $5}'|xargs echo)
+	if [ ! -z "${OPT_INTERFACE}" ]; then
+		OPT_EXPECTATION=$(${IFCONFIG} ${OPT_INTERFACE} | grep 'inet6 ' | xargs echo | cut -d" " -f2)
+	fi
+else
+	CHECK_DATA=$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER}|${AWK} '{print $4}' | xargs echo)
+
+fi
+
+#
+# https://nagios-plugins.org/doc/guidelines.html#AEN200
+# 'label'=value[UOM];[warn];[crit];[min];[max]
+# UOM (unit of measurement) is one of:
+#    no unit specified - assume a number (int or float) of things (eg, users, processes, load averages)
+#    s - seconds (also us, ms)
+#    % - percentage
+#    B - bytes (also KB, MB, TB)
+#    c - a continous counter (such as bytes transmitted on an interface)
+#
+CHECK_PERFDATA="hostname=${OPT_RECORD} record=${OPT_RECORD_TYPE} result=\"${CHECK_DATA}\" expectation=\"${OPT_EXPECTATION}\""
+CHECK_PERFDATA_TEXT="${OPT_RECORD}/${OPT_RECORD_TYPE} resolves to \"${CHECK_DATA}\" (expecting: \"${OPT_EXPECTATION}\")"
+
+#
+# return 0 = OK
+# return 1 = WARNING
+# return 2 = CRITICAL
+# return 3 = UNKNOWN
+#
+CHECK_STATUS=3
+
+CHECK_RESULT=$(echo ${CHECK_DATA} | grep ${OPT_EXPECTATION})
+if [ -z "${CHECK_RESULT}" ]; then
+	if [ "${OPT_WARN}" -eq 1 ]; then
+		CHECK_STATUS=1
+		CHECK_STATUS_TEXT="WARN"
+	else
+		CHECK_STATUS=2
+		CHECK_STATUS_TEXT="CRIT"
+	fi
+else 
+	CHECK_STATUS=0
+	CHECK_STATUS_TEXT="OK"
+fi
+
+#
+# Output result
+# exit with proper code
+#
+echo "${CHECK_TITLE}/${OPT_RECORD_TYPE}/${OPT_EXPECTATION} ${CHECK_STATUS_TEXT} - ${CHECK_PERFDATA_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_STATUS}
+
