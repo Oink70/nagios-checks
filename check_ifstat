@@ -38,7 +38,7 @@ function check_usage() {
 	echo "  - default unit is kb/s. use \"-b\" to switch to kbit/s." 1>&2
 	echo " " 1>&2
 	echo "for more information, see " 1>&2
-	echo "  ${0} --help" 1>&2
+	echo "  ${0} -h" 1>&2
 	echo " " 1>&2
 
 	exit 3;
