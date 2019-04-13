@@ -23,7 +23,7 @@ OPT_WARN=0
 
 function check_usage() {
 	echo " " 1>&2
-	echo "${0} usage: ${0} [-r <record>] [-t <record_type>] [-e <expectation>] ([-i <interface>]|[-a <address>])" 1>&2
+	echo "${0} usage: ${0} [-r <record>] [-t <record_type>] [-e <expectation>] [-s <dns_server>] ([-i <interface>]|[-a <address>])" 1>&2
 	echo " " 1>&2
 	echo "for more information, see " 1>&2
 	echo "  ${0} -h" 1>&2
@@ -45,6 +45,7 @@ function check_help() {
 	echo "Options: " 1>&2
 	echo "    -r <record>      DNS record to resolve" 1>&2
 	echo "    -e <expectation> Expected result" 1>&2
+	echo "    -s <dns_server>  DNS server to talk to" 1>&2
 	echo "    -i <interface>   Primary address of interface to use as expected result (use with -t AAAA for IPv6)" 1>&2
 	echo "    -t <record_type> Record type to check for (defaults to A)" 1>&2
 	echo "    -w               WARN only when DNS/Address mismatches (default: CRIT)" 1>&2
