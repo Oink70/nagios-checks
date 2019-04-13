@@ -110,7 +110,12 @@ fi
 #    c - a continous counter (such as bytes transmitted on an interface)
 #
 CHECK_PERFDATA="hostname=${OPT_RECORD} record=${OPT_RECORD_TYPE} result=\"${CHECK_DATA}\" expectation=\"${OPT_EXPECTATION}\""
-CHECK_PERFDATA_TEXT="${OPT_RECORD}/${OPT_RECORD_TYPE} resolves to \"${CHECK_DATA}\" (expecting: \"${OPT_EXPECTATION}\")"
+
+if [ -z "${OPT_DNS_SERVER}" ]; then
+	CHECK_PERFDATA_TEXT="${OPT_RECORD}/${OPT_RECORD_TYPE} resolves to \"${CHECK_DATA}\" (expecting: \"${OPT_EXPECTATION}\")"
+else
+	CHECK_PERFDATA_TEXT="${OPT_RECORD}/${OPT_RECORD_TYPE} resolves to \"${CHECK_DATA}\" on \"${OPT_DNS_SERVER}\" (expecting: \"${OPT_EXPECTATION}\")"
+fi
 
 #
 # return 0 = OK
