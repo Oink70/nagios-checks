@@ -17,6 +17,7 @@ Examples:
 Options: 
     -r <record>      DNS record to resolve
     -e <expectation> Expected result
+    -s <dns_server>  DNS server to talk to
     -i <interface>   Primary address of interface to use as expected result (use with -t AAAA for IPv6)
     -t <record_type> Record type to check for (defaults to A)
     -w               WARN only when DNS/Address mismatches (default: CRIT)
