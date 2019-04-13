@@ -113,8 +113,11 @@ CHECK_PERFDATA="hostname=${OPT_RECORD} record=${OPT_RECORD_TYPE} result=\"${CHEC
 
 if [ -z "${OPT_DNS_SERVER}" ]; then
 	CHECK_PERFDATA_TEXT="${OPT_RECORD}/${OPT_RECORD_TYPE} resolves to \"${CHECK_DATA}\" (expecting: \"${OPT_EXPECTATION}\")"
+	CHECK_PERFDATA="hostname=${OPT_RECORD} record=${OPT_RECORD_TYPE} result=\"${CHECK_DATA}\" expectation=\"${OPT_EXPECTATION}\""
 else
 	CHECK_PERFDATA_TEXT="${OPT_RECORD}/${OPT_RECORD_TYPE} resolves to \"${CHECK_DATA}\" on \"${OPT_DNS_SERVER}\" (expecting: \"${OPT_EXPECTATION}\")"
+	CHECK_PERFDATA="hostname=${OPT_RECORD} record=${OPT_RECORD_TYPE} result=\"${CHECK_DATA}\" server=\"${OPT_DNS_SERVER}\" expectation=\"${OPT_EXPECTATION}\""
+
 fi
 
 #
