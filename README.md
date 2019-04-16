@@ -73,6 +73,31 @@ Options:
     -C <crit_out>   Critical threshold for outgoing traffic (optional, defaults to internal values or -c)
 ```
 
+## `check_multiple_records`
+
+Requires `awk` and `host` to be installed.
+
+```
+check_multiple_records usage: ./check_multiple_records [OPTION ...]
+ 
+check_multiple_records - checks a given comparison value against up to nine given DNS records of a given type
+ 
+Examples: 
+  ./check_multiple_records -t A -1 web0.acme.com -2 web1.acme.com -c 1.2.3.4 # check wether any of "web0.acme.com web1.acme.com" matches 1.2.3.4
+  ./check_multiple_records -t AAAA -1 web0.acme.com -i eth0 -w               # check wether "web0.acme.com" resolved to the IPv6 address of eth0, only WARNing if not
+ 
+Options: 
+    -1..-9 <record>  DNS record to resolve, up to 9 in total. first one is mandatory.
+    -c <comparison>  Result to compare to
+    -s <dns_server>  DNS server to talk to
+    -i <interface>   Primary address of interface to use as expected result (use with -t AAAA for IPv6)
+    -t <record_type> Record type to check for (defaults to A)
+    -a               All checked records need to match (default: only one needs to match)
+    -w               WARN only when DNS/Address mismatches (default: CRIT)
+ 
+NOTE: using '-i' will only match the first public/global address of the given interface!
+```
+
 ## `check_ssl_cert`
 
 Requires `bc`, `awk` and `curl` to be installed.
