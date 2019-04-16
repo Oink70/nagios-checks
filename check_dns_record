@@ -50,7 +50,7 @@ function check_help() {
 	echo "    -t <record_type> Record type to check for (defaults to A)" 1>&2
 	echo "    -w               WARN only when DNS/Address mismatches (default: CRIT)" 1>&2
 	echo " " 1>&2
-	echo "NOTE: '-i' does not reliably work with '-t AAAA'/IPv6!" 2>&1
+	echo "NOTE: using '-i' will only match the first public/global address of the given interface!" 2>&1
 	echo " " 1>&2
 
 	exit 3;
@@ -93,7 +93,7 @@ shift $((OPTIND-1))
 if [ "${OPT_RECORD_TYPE}" == "AAAA" ]; then
 	CHECK_DATA=$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER}|${AWK} '{print $5}'|xargs echo)
 	if [ ! -z "${OPT_INTERFACE}" ]; then
-		OPT_EXPECTATION=$(${IFCONFIG} ${OPT_INTERFACE} | grep 'inet6 ' | xargs echo | cut -d" " -f2)
+		OPT_EXPECTATION=$(${IFCONFIG} ${OPT_INTERFACE} | grep 'inet6.*global.*' | xargs echo | cut -d" " -f2)
 	fi
 else
 	CHECK_DATA=$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER}|${AWK} '{print $4}' | xargs echo)
