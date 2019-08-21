@@ -117,3 +117,26 @@ Options:
     -w <warn_sec>   Warning threshold if certificate expiry is closer than this many seconds (default 30 days)
     -c <crit_sec>   Critical threshold if certificate expiry is closer than this many seconds (default 14 days)
 ```
+
+## `check_tor`
+
+Requires `curl`, `awk` and `bc` to be installed.
+
+```
+check_tor usage: ./check_tor [OPTION ...]
+ 
+check_tor - check wether TOR connection is alive
+ 
+Examples: 
+  ./check_tor -a 127.0.0.8 -p 9051 -u "https://www.torproject.org" # check TOR SocksPort at "127.0.0.8:9051", using https://www.torproject.org to test connectivity.
+  ./check_tor -w 10 -c 30                                          # check default TOR SocksPort using default URL with Warning threshold of 10s, Crticial threshold of 30s.
+ 
+Per default, the SocksPort at "127.0.0.1:9050" will be used to call "https://www.veruscoin.io". Latency >5s is WARN, >10s is CRIT.
+ 
+Options: 
+    -a <address>    Address of TOR SocksPort
+    -p <port>       Port of TOR SocksPort
+    -u <url>        URL to test TOR connectivity with
+    -w <warn>       Warning threshold for latency
+    -c <crit>       Critical threshold for latency
+```
