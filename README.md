@@ -1,5 +1,5 @@
 # nagios-checks
-Various Nagios checks
+Various Nagios checks. These may or may not work for you, you may have to adapt details of it. Be aware.
 
 ## `check_dns_record`
 
@@ -139,4 +139,26 @@ Options:
     -u <url>        URL to test TOR connectivity with
     -w <warn>       Warning threshold for latency
     -c <crit>       Critical threshold for latency
+```
+
+## `check_s-nomp`
+
+Requires `curl`, `bc`, `awk`, `grep` and `jq` to be installed.
+
+```
+check_s-nomp usage: ./check_s-nomp [OPTION ...]
+ 
+check_s-nomp - check wether S-NOMP pool is alive
+ 
+Examples: 
+  ./check_s-nomp -a 127.0.0.8 -p 8090 -u "/manual" -n "cmake_minim" # check S-NOMP at "127.0.0.8:8090", searching "/manual" for string "cmake_minim"
+ 
+Per default, "127.0.0.1:8080" will be used to get "/stats" and find the string "Blocks".
+ 
+Options: 
+    -a <address>    Address of S-NOMP HTTP Interface
+    -p <port>       Port of S-NOMP HTTP Interface
+    -s              Enable HTTPS
+    -u <url>        URL to get
+    -n <needle>     String to search for
 ```
