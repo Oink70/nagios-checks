@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 # 
 # NAGIOS RETURN CODES
@@ -49,11 +49,12 @@ OPT_SCHEME="http"
 
 function check_usage() {
         echo " " 1>&2
-        echo "${0} usage: ${0} [-a <address>] [-p <port>] [-u <url>] [-n <needle>]" 1>&2
+        echo "${0} usage: ${0} [-a <address>] [-p <port>] [-u <url>] [-n <needle>] [-s]" 1>&2
         echo " " 1>&2
         echo "  - default address/port is ${OPT_ADDRESS}:${OPT_PORT}. " 1>&2
         echo "  - default URL is ${OPT_URL}." 1>&2
         echo "  - default needle is \"${OPT_NEEDLE}\"." 1>&2
+        echo "  - default scheme is \"${OPT_SCHEME}\"." 1>&2
         echo " " 1>&2
         echo "for more information, see " 1>&2
         echo "  ${0} -h" 1>&2
