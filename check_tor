@@ -27,7 +27,7 @@ if [ -z "${CURL}" ]; then echo "${0} curl not found, exiting!"; exit 3; fi
 
 BC=$(which bc)
 if [ -z "${BC}" ]; then echo "${0} bc not found, exiting!"; exit 3; fi
-function bc_expr(){ echo "scale=2;${1}"|${BC}; }
+function bc_expr(){ echo "scale=3;${1}"|${BC}; }
 
 AWK=$(which awk)
 if [ -z "${AWK}" ]; then echo "${0} awk not found, exiting!"; exit 3; fi
@@ -117,7 +117,7 @@ CHECK_NAME="TOR"
 # output empty = unknown
 if [ -z "${REQUEST}" ]; then
 	CHECK_STATUS="UNKNOWN"
-	CHECK_TEXT="Unexpected data"
+	CHECK_TEXT="Unexpected/empty data"
 	CHECK_PERFDATA="tor_connected=0"
 	CHECK_RETURN=3
 # equal output = OK
