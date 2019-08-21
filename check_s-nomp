@@ -1,0 +1,157 @@
+#!/bin/bash -x
+
+# 
+# NAGIOS RETURN CODES
+# -------------------
+#
+# 0: OK
+# 1: WARNING
+# 2: CRITICAL
+# 3: UNKNOWN
+#
+# NAGIOS OUTPUT FORMAT
+# --------------------
+# 
+# "check_name check_status - check_text|check_perfdata"
+#
+# NAGIOS PERFDATA FORMAT
+# ----------------------
+#
+# see https://nagios-plugins.org/doc/guidelines.html#AEN200
+# label=value[UOM];[warn];[crit];[min];[max]
+#
+
+# needed binaries
+CURL=$(which curl)
+if [ -z "${CURL}" ]; then echo "${0} curl not found, exiting!"; exit 3; fi
+
+BC=$(which bc)
+if [ -z "${BC}" ]; then echo "${0} bc not found, exiting!"; exit 3; fi
+function bc_expr(){ echo "scale=3;${1}"|${BC}; }
+
+AWK=$(which awk)
+if [ -z "${AWK}" ]; then echo "${0} awk not found, exiting!"; exit 3; fi
+
+GREP=$(which grep)
+if [ -z "${GREP}" ]; then echo "${0} grep not found, exiting!"; exit 3; fi
+
+JQ=$(which jq)
+if [ -z "${JQ}" ]; then echo "${0} jq not found, exiting!"; exit 3; fi
+
+#
+# default options
+#
+OPT_ADDRESS="127.0.0.1"
+OPT_PORT="8080"
+OPT_URL="/stats"
+OPT_NEEDLE="Blocks"
+OPT_SCHEME="http"
+
+function check_usage() {
+        echo " " 1>&2
+        echo "${0} usage: ${0} [-a <address>] [-p <port>] [-u <url>] [-n <needle>]" 1>&2
+        echo " " 1>&2
+        echo "  - default address/port is ${OPT_ADDRESS}:${OPT_PORT}. " 1>&2
+        echo "  - default URL is ${OPT_URL}." 1>&2
+        echo "  - default needle is \"${OPT_NEEDLE}\"." 1>&2
+        echo " " 1>&2
+        echo "for more information, see " 1>&2
+        echo "  ${0} -h" 1>&2
+        echo " " 1>&2
+
+        exit 3;
+}
+
+function check_help() {
+        echo " " 1>&2
+        echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
+        echo " " 1>&2
+        echo "$(basename ${0}) - check wether S-NOMP pool is alive"  1>&2
+        echo " " 1>&2
+        echo "Examples: " 1>&2
+        echo "  ${0} -a 127.0.0.8 -p 8090 -u \"/manual\" -n \"cmake_minim\" # check S-NOMP at \"127.0.0.8:8090\", searching \"/manual\" for string \"cmake_minim\"" 1>&2
+        echo " " 1>&2
+        echo "Per default, \"${OPT_ADDRESS}:${OPT_PORT}\" will be used to get \"${OPT_URL}\" and find the string \"${OPT_NEEDLE}\"." 1>&2
+        echo " " 1>&2
+        echo "Options: " 1>&2
+        echo "    -a <address>    Address of S-NOMP HTTP Interface" 1>&2
+        echo "    -p <port>       Port of S-NOMP HTTP Interface" 1>&2
+        echo "    -s              Enable HTTPS" 1>&2
+        echo "    -u <url>        URL to get" 1>&2
+        echo "    -n <needle>     String to search for" 1>&2
+        echo " " 1>&2
+
+        exit 3;
+}
+
+#
+# parse commandline options
+#
+while getopts "a:hp:u:n:s" OPT; do
+        case "${OPT}" in
+                h)
+                        check_help
+                        ;;
+                a)
+                        OPT_ADDRESS="${OPTARG}"
+                        ;;
+                p)
+                        OPT_PORT="${OPTARG}"
+                        ;;
+                u)
+                        OPT_URL="${OPTARG}"
+                        ;;
+                n)
+                        OPT_NEEDLE="${OPTARG}"
+                        ;;
+                s)
+                        OPT_SCHEME="https"
+                        ;;
+                *)
+                        check_usage
+                        ;;
+        esac
+done
+shift $((OPTIND-1))
+
+# collect data
+MATCH=$(${CURL} --silent "${OPT_SCHEME}://${OPT_ADDRESS}:${OPT_PORT}${OPT_URL}" | ${GREP} "${OPT_NEEDLE}")
+API=$(${CURL} --silent "${OPT_SCHEME}://${OPT_ADDRESS}:${OPT_PORT}/api/stats")
+
+OUT_WORKERS=$(echo ${API} | ${JQ} -r .algos.verushash.workers)
+OUT_HASHRATE=$(echo ${API} | ${JQ} -r .algos.verushash.hashrate)
+OUT_HASHRATE_STRING=$(echo ${API} | ${JQ} -r .algos.verushash.hashrateString)
+
+# prepare output
+CHECK_NAME="S-NOMP/VRSC"
+
+# determine status
+# either output empty = unknown
+if [ -z "${MATCH}" ] || [ -z "${API}" ]; then
+    CHECK_STATUS="UNKNOWN"
+	CHECK_TEXT="Unknown status"
+    CHECK_RETURN=3
+else
+	if [ $(bc_expr "${OUT_WORKERS}==0") -eq "1" ] || [ $(bc_expr "${OUT_HASHRATE}==0") -eq "1" ]; then
+		CHECK_STATUS="WARN"
+		CHECK_TEXT="No Workers or Hashrate on Pool"
+		CHECK_PERFDATA="pool_workers=${OUT_WORKERS} pool_hashrate=${OUT_HASHRATE}"
+		CHECK_RETURN=1
+	elif [ $(bc_expr "${OUT_WORKERS}>0") -eq "1" ] || [ $(bc_expr "${OUT_HASHRATE}>0") -eq "1" ]; then
+    	CHECK_STATUS="OK"
+		CHECK_TEXT="Workers: ${OUT_WORKERS}, Hashrate: ${OUT_HASHRATE_STRING}"
+		CHECK_PERFDATA="pool_workers=${OUT_WORKERS} pool_hashrate=${OUT_HASHRATE}"
+		CHECK_RETURN=0
+	else
+		CHECK_STATUS="CRIT"
+		CHECK_TEXT="Pool down"
+		CHECK_RETURN=2
+	fi
+fi
+
+# output
+echo -n "${CHECK_NAME} ${CHECK_STATUS} - ${CHECK_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_RETURN}
+
+# EOF
+
