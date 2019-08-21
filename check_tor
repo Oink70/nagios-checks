@@ -22,14 +22,15 @@
 #
 
 # needed binaries
-AWK=$(which awk)
+CURL=$(which curl)
+if [ -z "${CURL}" ]; then echo "${0} curl not found, exiting!"; exit 3; fi
+
 BC=$(which bc)
+if [ -z "${BC}" ]; then echo "${0} bc not found, exiting!"; exit 3; fi
 function bc_expr(){ echo "scale=2;${1}"|${BC}; }
 
-CURL=$(which curl)
-JQ=$(which jq)
-TR=$(which tr)
-GREP=$(which grep)
+AWK=$(which awk)
+if [ -z "${AWK}" ]; then echo "${0} awk not found, exiting!"; exit 3; fi
 
 #
 # default options
