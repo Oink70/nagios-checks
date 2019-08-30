@@ -162,3 +162,23 @@ Options:
     -u <url>        URL to get
     -n <needle>     String to search for
 ```
+
+### `check_iquidus_height`
+
+Requires `curl`, `bc`, `awk` and obviously `MongoDB` to be installed.
+
+```
+check_iquidus_height usage: ./check_iquidus_height [OPTION ...]
+ 
+check_iquidus_height - Compare Iquidus MongoDB height against Wallet height
+ 
+Examples: 
+  check_iquidus_height -d explorerdb-foobar -w "/home/bitcoin/bin/bitcoin-cli getblockcount" # Use "explorerdb-foobar" and compare against "bitcoin-cli getblockcount"
+ 
+ 
+Options: 
+    -d <database>              Specify MongoDB database to use
+    -w <wallet_height_command> Command to get wallet height with
+    -W <warn_difference>       WARN threshold (default: 2)
+    -C <crit_difference>       CRIT threshold (default: 5)
+```
