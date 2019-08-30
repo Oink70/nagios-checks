@@ -1,0 +1,125 @@
+#!/bin/bash
+
+# 
+# NAGIOS RETURN CODES
+# -------------------
+#
+# 0: OK
+# 1: WARNING
+# 2: CRITICAL
+# 3: UNKNOWN
+#
+# NAGIOS OUTPUT FORMAT
+# --------------------
+# 
+# "check_name check_status - check_text|check_perfdata"
+#
+# NAGIOS PERFDATA FORMAT
+# ----------------------
+#
+# see https://nagios-plugins.org/doc/guidelines.html#AEN200
+# label=value[UOM];[warn];[crit];[min];[max]
+#
+
+# needed binaries
+AWK=$(which awk)
+BC=$(which bc)
+function bc_expr(){ echo "scale=2;${1}"|${BC}; }
+CURL=$(which curl)
+JQ=$(which jq)
+TR=$(which tr)
+GREP=$(which grep)
+MONGO=$(which mongo)
+
+OPT_MONGO_DATABASE="explorerdb"
+OPT_DIFF_WARN=2
+OPT_DIFF_CRIT=5
+
+function check_usage() {
+	echo " " 1>&2
+	echo "$(basename ${0}) usage: $(basename ${0}) [-d <database>] [-w <wallet height command>] [-W <warn_difference>] [-C <crit_difference>]" 1>&2
+	echo " " 1>&2
+	echo "for more information, see " 1>&2
+	echo "  $(basename ${0}) -h" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+function check_help() { 
+	echo " " 1>&2
+	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
+	echo " " 1>&2
+	echo "$(basename ${0}) - Compare Iquidus MongoDB height against Wallet height"  1>&2
+	echo " " 1>&2
+	echo "Examples: " 1>&2
+	echo "  $(basename ${0}) -d explorerdb-foobar -w \"/home/bitcoin/bin/bitcoin-cli getblockcount\" # Use \"explorerdb-foobar\" and compare against \"bitcoin-cli getblockcount\"" 1>&2
+	echo " " 1>&2
+	echo " " 1>&2
+	echo "Options: " 1>&2
+	echo "    -d <database>              Specify MongoDB database to use" 1>&2
+	echo "    -w <wallet_height_command> Command to get wallet height with" 1>&2
+	echo "    -W <warn_difference>       WARN threshold (default: ${OPT_DIFF_WARN})" 1>&2
+	echo "    -C <crit_difference>       CRIT threshold (default: ${OPT_DIFF_CRIT})" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+#
+# parse commandline options
+#
+while getopts "hud:w:W:C:" OPT; do
+	case "${OPT}" in
+		h)
+			check_help
+			;;
+		d)
+			OPT_MONGO_DATABASE="${OPTARG}"
+			;;
+		w)
+			OPT_WALLET_HEIGHT="$(${OPTARG})"
+			;;
+		W)
+		    OPT_DIFF_WARN="${OPTARG}"
+		    ;;
+		C)
+		    OPT_DIFF_CRIT="${OPTARG}"
+		    ;;
+		*)
+			check_usage
+			;;
+	esac
+done
+shift $((OPTIND-1))
+
+
+# collect data
+MONGO_RESULT=$(echo "db.txes.find({blockindex: ${OPT_WALLET_HEIGHT}})" | ${MONGO} --quiet ${OPT_MONGO_DATABASE}) 
+EXPLORER_HEIGHT=$(echo 'db.txes.find({}, {'blockindex': 1}).sort({blockindex:-1}).limit(1)' | ${MONGO} --quiet ${OPT_MONGO_DATABASE} | ${AWK} '{print $7}')
+HEIGHT_DIFFERENCE=$(bc_expr "${OPT_WALLET_HEIGHT}-${EXPLORER_HEIGHT}")
+
+# determine status
+if [ -z "${EXPLORER_HEIGHT}" ] || [ -z "${OPT_WALLET_HEIGHT}" ]; then
+    CHECK_STATUS="UNKNOWN"
+	CHECK_TEXT="Status Unknown"
+    CHECK_RETURN=3
+elif [ ${HEIGHT_DIFFERENCE} -ge ${OPT_DIFF_WARN} ] && [ ${HEIGHT_DIFFERENCE} -lt ${OPT_DIFF_CRIT} ]; then
+    CHECK_STATUS="WARN"
+    CHECK_TEXT="Explorer is ${HEIGHT_DIFFERENCE} blocks behind the wallet"
+    CHECK_RETURN=1
+elif [ ${HEIGHT_DIFFERENCE} -gt ${OPT_DIFF_CRIT} ]; then
+    CHECK_STATUS="CRIT"
+	CHECK_TEXT="Explorer is more than ${OPT_DIFF_CRIT} blocks behind the wallet"
+    CHECK_RETURN=2
+else
+    CHECK_STATUS="OK"
+    CHECK_TEXT="Explorer is up to wallet height"
+    CHECK_RETURN=0
+fi
+
+# output
+echo -n "${CHECK_STATUS} - ${CHECK_TEXT} (Explorer: ${EXPLORER_HEIGHT}, Wallet: ${OPT_WALLET_HEIGHT}, Difference: ${HEIGHT_DIFFERENCE})|wallet_height=${OPT_WALLET_HEIGHT} explorer_height=${EXPLORER_HEIGHT} height_difference=${HEIGHT_DIFFERENCE}"
+exit ${CHECK_RETURN}
+
+# EOF
