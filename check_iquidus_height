@@ -48,7 +48,7 @@ function check_usage() {
 
 function check_help() { 
 	echo " " 1>&2
-	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
+	echo "$(basename ${0}) usage: $(basename ${0}) [OPTION ...]" 1>&2
 	echo " " 1>&2
 	echo "$(basename ${0}) - Compare Iquidus MongoDB height against Wallet height"  1>&2
 	echo " " 1>&2
@@ -119,7 +119,7 @@ else
 fi
 
 # output
-echo -n "${CHECK_STATUS} - ${CHECK_TEXT} (Explorer: ${EXPLORER_HEIGHT}, Wallet: ${OPT_WALLET_HEIGHT}, Difference: ${HEIGHT_DIFFERENCE})|wallet_height=${OPT_WALLET_HEIGHT} explorer_height=${EXPLORER_HEIGHT} height_difference=${HEIGHT_DIFFERENCE}"
+echo -n "${CHECK_STATUS} - ${CHECK_TEXT} (Explorer: ${EXPLORER_HEIGHT}, Wallet: ${OPT_WALLET_HEIGHT}, Difference: ${HEIGHT_DIFFERENCE})|wallet_height=${OPT_WALLET_HEIGHT} explorer_height=${EXPLORER_HEIGHT} height_difference=${HEIGHT_DIFFERENCE};${OPT_DIFF_WARN};${OPT_DIFF_CRIT}"
 exit ${CHECK_RETURN}
 
 # EOF
