@@ -95,6 +95,8 @@ if [ "${OPT_RECORD_TYPE}" == "AAAA" ]; then
 	if [ ! -z "${OPT_INTERFACE}" ]; then
 		OPT_EXPECTATION=$(${IFCONFIG} ${OPT_INTERFACE} | grep 'inet6.*global.*' | xargs echo | cut -d" " -f2)
 	fi
+elif [ "${OPT_RECORD_TYPE}" == "MX" ]; then
+	    CHECK_DATA=$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER}|${AWK} '{print $7}'|xargs echo)
 else
 	CHECK_DATA=$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER}|${AWK} '{print $4}' | xargs echo)
 
