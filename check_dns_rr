@@ -46,7 +46,7 @@ function check_help() {
 	echo "    -s <dns_server>     DNS server to talk to" 1>&2
 	echo "    -w <warn_threshold> Warn with equal to/less than this amount of active servers" 1>&2
 	echo "    -c <crit_thresold>  Crit with equal to/less than this amount of active servers" 1>&2
-	echo "    -0 .. -9 <ip:name>  IP/name double (up to 10 in total)" 1>&2
+	echo "    -0 .. -9 <ip,name>  IP/name double (up to 10 in total)" 1>&2
 	echo " " 1>&2
 
 	exit 3;
