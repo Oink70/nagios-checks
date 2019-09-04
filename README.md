@@ -182,3 +182,27 @@ Options:
     -W <warn_difference>       WARN threshold (default: 2)
     -C <crit_difference>       CRIT threshold (default: 5)
 ```
+
+## `check_dns_rr`
+
+Requires `awk` and `host` to be installed.
+
+```
+check_dns_rr usage: ./check_dns_rr [OPTION ...]
+ 
+check_dns_rr - checks a DNS round-robin setup for active hosts
+ 
+Examples: 
+
+Check 1.2.3.4, 2.3.4.5, 3.4.5.6 against "www.acme.com", warn at 2 active, crit at 1 active.
+  ./check_dns_rr -r www.acme.com -s 8.8.8.8 -1 1.2.3.4,web1 -2 2.3.4.5,web2 -3 3.4.5.6,web3 -w 2 -c 1
+ 
+Options: 
+    -r <record>         DNS record to resolve
+    -t <record_type>    Record type to check for (defaults to A)
+    -s <dns_server>     DNS server to talk to
+    -w <warn_threshold> Warn with equal to/less than this amount of active servers
+    -c <crit_thresold>  Crit with equal to/less than this amount of active servers
+    -0 .. -9 <ip:name>  IP/name double (up to 10 in total)
+ 
+```

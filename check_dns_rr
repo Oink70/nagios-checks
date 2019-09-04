@@ -1,0 +1,172 @@
+#!/bin/bash
+
+#
+# return 0 = OK
+# return 1 = WARNING
+# return 2 = CRITICAL
+# return 3 = UNKNOWN
+#
+
+AWK=$(which awk)
+HOST=$(which host)
+
+
+#
+# CHECK CONFIG
+# 
+OPT_RECORD_TYPE="A"
+OPT_WARN=1
+OPT_CRIT=0
+
+function check_usage() {
+	echo " " 1>&2
+	echo "${0} usage: ${0} [-r <record>] [-t <record_type>] [-s <dns_server>] [-w <warn_threshold>] [-c <crit_threshold>] [-0 ip0,name0] [-1 ip1,name1] .. [-9 ip9,name9]" 1>&2
+	echo " " 1>&2
+	echo "for more information, see " 1>&2
+	echo "  ${0} -h" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+function check_help() { 
+	echo " " 1>&2
+	echo "$(basename ${0}) usage: ${0} [OPTION ...]" 1>&2
+	echo " " 1>&2
+	echo "$(basename ${0}) - checks a DNS round-robin setup for active hosts" 2>&1
+	echo " " 1>&2
+	echo "Examples: " 1>&2
+	echo "" 1>&1
+	echo "Check 1.2.3.4, 2.3.4.5, 3.4.5.6 against \"www.acme.com\", warn at 2 active, crit at 1 active." 2>&1
+	echo "  ${0} -r www.acme.com -s 8.8.8.8 -1 1.2.3.4,web1 -2 2.3.4.5,web2 -3 3.4.5.6,web3 -w 2 -c 1" 2>&1
+	echo " " 1>&2
+	echo "Options: " 1>&2
+	echo "    -r <record>         DNS record to resolve" 1>&2
+	echo "    -t <record_type>    Record type to check for (defaults to A)" 1>&2
+	echo "    -s <dns_server>     DNS server to talk to" 1>&2
+	echo "    -w <warn_threshold> Warn with equal to/less than this amount of active servers" 1>&2
+	echo "    -c <crit_thresold>  Crit with equal to/less than this amount of active servers" 1>&2
+	echo "    -0 .. -9 <ip:name>  IP/name double (up to 10 in total)" 1>&2
+	echo " " 1>&2
+
+	exit 3;
+}
+
+#
+# parse commandline options
+#
+while getopts "hr:t:s:w:c:a:0:1:2:3:4:5:6:7:8:9:" OPT; do
+	case "${OPT}" in
+		h)
+			check_help
+			;;
+		r)
+			OPT_RECORD="${OPTARG}"
+			;;
+		t)
+			OPT_RECORD_TYPE="${OPTARG}"
+			;;
+		s)
+			OPT_DNS_SERVER="${OPTARG}"
+			;;
+		a)
+			OPT_ALLOWED=${OPTARG}
+			;;
+		w)
+			OPT_WARN=${OPTARG}
+			;;
+		c)
+			OPT_CRIT=${OPTARG}
+			;;
+		0|1|2|3|4|5|6|7|8|9)
+			OPT_HOSTS="${OPT_HOSTS} ${OPTARG}"
+			;;
+		*)
+			check_usage
+			;;
+	esac
+done
+shift $((OPTIND-1))
+
+case "${OPT_RECORD_TYPE}" in
+	"MX")
+		CHECK_DATA="$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER} | ${AWK} '{print $5}' | xargs echo)"
+		;;
+	"AAAA")
+		CHECK_DATA="$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER} | ${AWK} '{print $5}' | xargs echo)"
+		;;
+	"A"|*)
+		CHECK_DATA="$(${HOST} -t ${OPT_RECORD_TYPE} ${OPT_RECORD} ${OPT_DNS_SERVER} | ${AWK} '{print $4}' | xargs echo)"
+		;;
+esac
+
+NUM_OK=0
+for h in ${OPT_HOSTS}; do
+	H_IP=$(echo ${h} | cut -d"," -f1)
+	H_NAME=$(echo ${h} | cut -d"," -f2)
+
+	if [ "$(echo ${CHECK_DATA} | grep ${H_IP})" ]; then	
+		CHECK_RESULT="${CHECK_RESULT} ${H_NAME}:ok"
+		NUM_OK=$((NUM_OK+1))
+	else
+		CHECK_RESULT="${CHECK_RESULT} ${H_NAME}:nok"
+	fi
+done
+shopt -s extglob
+CHECK_RESULT=${CHECK_RESULT##*( )}
+shopt -u extglob
+
+#
+# https://nagios-plugins.org/doc/guidelines.html#AEN200
+# 'label'=value[UOM];[warn];[crit];[min];[max]
+# UOM (unit of measurement) is one of:
+#    no unit specified - assume a number (int or float) of things (eg, users, processes, load averages)
+#    s - seconds (also us, ms)
+#    % - percentage
+#    B - bytes (also KB, MB, TB)
+#    c - a continous counter (such as bytes transmitted on an interface)
+#
+
+#
+# return 0 = OK
+# return 1 = WARNING
+# return 2 = CRITICAL
+# return 3 = UNKNOWN
+#
+CHECK_STATUS=3
+
+if [ -z "${CHECK_RESULT}" ]; then
+		CHECK_STATUS=3
+		CHECK_STATUS_TEXT="UNKOWN"
+else
+	if [ ! -z "${OPT_ALLOWED}" ]; then
+		if [ ${NUM_OK} -eq ${OPT_ALLOWED} ]; then
+			CHECK_STATUS=0
+			CHECK_STATUS_TEXT="OK"
+		else
+			CHECK_STATUS=2
+			CHECK_STATUS_TEXT="CRIT"
+		fi
+		PERF_TEXT="${OPT_ALLOWED} allowed, ${NUM_OK} active"
+	else
+		if [ ${NUM_OK} -le ${OPT_WARN} ] && [ ${NUM_OK} -gt ${OPT_CRIT} ]; then
+			CHECK_STATUS=1
+			CHECK_STATUS_TEXT="WARN"
+		elif [ ${NUM_OK} -le ${OPT_CRIT} ] ; then
+			CHECK_STATUS=2
+			CHECK_STATUS_TEXT="CRIT"
+		else
+			CHECK_STATUS=0
+			CHECK_STATUS_TEXT="OK"
+		fi
+		PERF_TEXT="$((OPT_WARN+1)) required, ${NUM_OK} active"
+	fi
+fi
+
+#
+# Output result
+# exit with proper code
+#
+echo "${OPT_RECORD} ${OPT_RECORD_TYPE} ${CHECK_STATUS_TEXT} - ${PERF_TEXT} - ${CHECK_RESULT}|num_ok=${NUM_OK};${OPT_WARN};${OPT_CRIT};0;0"
+exit ${CHECK_STATUS}
+
