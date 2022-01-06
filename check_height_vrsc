@@ -1,0 +1,63 @@
+#!/bin/bash -x
+
+# 
+# NAGIOS RETURN CODES
+# -------------------
+#
+# 0: OK
+# 1: WARNING
+# 2: CRITICAL
+# 3: UNKNOWN
+#
+# NAGIOS OUTPUT FORMAT
+# --------------------
+# 
+# "check_name check_status - check_text|check_perfdata"
+#
+
+# needed binaries
+BC=$(which bc)
+CURL=$(which curl)
+JQ=$(which jq)
+TR=$(which tr)
+VERUS="/home/verus/bin/verus -datadir=/home/verus/.komodo/VRSC"
+
+
+# collect data
+
+HEIGHT_LOCAL=$(${VERUS} getinfo | ${JQ} .blocks)
+HEIGHT_REMOTE=$(${CURL} --silent https://explorer.verus.io/api/getblockcount)
+HEIGHT_DISTANCE=$(echo "${HEIGHT_LOCAL}-${HEIGHT_REMOTE}" | ${BC} | ${TR} -d -)
+
+# prepare output
+CHECK_NAME="VRSC -1- Height"
+CHECK_TEXT="Local: ${HEIGHT_LOCAL}, Remote: ${HEIGHT_REMOTE}, Distance: ${HEIGHT_DISTANCE}"
+CHECK_PERFDATA="height_local=${HEIGHT_LOCAL} height_remote=${HEIGHT_REMOTE} height_distance=${HEIGHT_DISTANCE}"
+
+# determine status
+# either output empty = unknown
+if [ -z "${HEIGHT_LOCAL}" ] || [ -z "${HEIGHT_REMOTE}" ]; then
+    CHECK_STATUS="UNKNOWN"
+    CHECK_RETURN=3
+# equal output = OK
+elif [ "${HEIGHT_LOCAL}" -eq "${HEIGHT_REMOTE}" ]; then
+    CHECK_STATUS="OK"
+    CHECK_RETURN=0
+else
+	# distance < 3 = warning
+	if [ "${HEIGHT_DISTANCE}" -lt "3" ]; then
+		CHECK_STATUS="WARN"
+		CHECK_RETURN=1
+	# distance > 3 = critical
+	else	
+    	CHECK_STATUS="CRIT"
+    	CHECK_RETURN=2
+	fi
+fi
+
+# output
+echo -n "${CHECK_NAME} ${CHECK_STATUS} - ${CHECK_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_RETURN}
+
+# EOF
+

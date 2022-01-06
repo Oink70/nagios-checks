@@ -1,0 +1,121 @@
+#!/bin/bash -x
+
+# 
+# NAGIOS RETURN CODES
+# -------------------
+#
+# 0: OK
+# 1: WARNING
+# 2: CRITICAL
+# 3: UNKNOWN
+#
+# NAGIOS OUTPUT FORMAT
+# --------------------
+# 
+# "check_name check_status - check_text|check_perfdata"
+#
+
+# needed binaries
+BC=$(which bc)
+CURL=$(which curl)
+JQ=$(which jq)
+VERUS="/home/verus/bin/verus -datadir=/home/verus/.komodo/VRSC"
+
+#set defaults
+HEIGHT_LOCAL=$($VERUS getblockcount)
+SAFE_LIMIT=1440
+
+#process command line parameters
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+  key="$1"
+
+  case $key in
+    -id|-ID|--VerusID)
+      VERUS_ID=$2
+      shift # past argument
+      shift # past value
+      ;;
+	-s|--safe-unlock-distance)
+	  SAFE_LIMIT=$2
+	  shift # past argument
+      shift # past value
+      ;;
+    -h|--help)
+      printf "\nUsage:\n\ncheck_VerusID [options]\n\n"
+      printf "Options:\n\n"
+      printf "\t-id #\t--VerusID :\tThe VerusID to check the lock/unlock status for\n"
+	  printf "\t-s #\t--safe-unlock-distance :\tThe safe distance between unlock and current height\n"
+      printf "\nExamples:\n\n"
+      printf "check_VerusID -ID \"Verus Coin Foundation@\" -s 2880 \t\tCheck the status of \"Verus Coin Foundation@\" with an unlock distance over 2880 blocks being safe\n"
+      printf "\n"
+      exit 3
+      ;;
+    *)    # unknown option
+      POSITIONAL+=("$1") # save it in an array for later
+      shift # past argument
+      ;;
+  esac
+done
+
+#check if a VerusID has been passed to the script
+if [ VERUS_ID == "" ]; then
+  printf "\nUsage:\n\ncheck_VerusID [options]\n\n"
+  printf "Options:\n\n"
+  printf "\t-id #\t-ID :\tThe The VerusID to check the lock/unlock status for\n"
+  printf "\nExamples:\n\n"
+  printf "check_VerusID -ID \"Verus Coin Foundation@\"\t\tCheck the status of \"Verus Coin Foundation@\"\n"
+  printf "\n"
+  exit 3
+fi
+
+# collect data
+ID_STATUS=$($VERUS getidentity "${VERUS_ID}")
+ID_FLAG=$(echo $ID_STATUS | ${JQ} .identity.flags)
+ID_HEIGHT=$(echo $ID_STATUS | ${JQ} .identity.timelock)
+
+# determine status
+# ID_FLAG == 0 means: a) unlocks at future height, b) is unlocked at passed height
+if [ "${ID_FLAG}" == "0" ]; then
+  # Red, ID is unlocked. 
+  if [ "${ID_HEIGHT}" -lt "${HEIGHT_LOCAL}" ]; then
+    CHECK_STATUS="UNLOCKED"
+	CHECK_TEXT="Block: ${HEIGHT_LOCAL}, unlocked"
+	CHECK_PERFDATA="Block=${HEIGHT_LOCAL}, Unlocked"
+    CHECK_RETURN=2
+  # Yellow, ID is unlocking within the $SAFE_LIMIT amount of blocks.
+  elif [ "${ID_HEIGHT}" -le "$(echo "${HEIGHT_LOCAL} + ${SAFE_LIMIT}" | ${BC})" ]; then
+    CHECK_STATUS="UNLOCKING"
+	CHECK_TEXT="Block: ${HEIGHT_LOCAL}, Unlocking at block ${ID_HEIGHT}"
+	CHECK_PERFDATA="Block=${HEIGHT_LOCAL}, Unlock at ${ID_HEIGHT}"
+	CHECK_RETURN=1
+  # Green, ID is locked until fixed height higher than $HEIGHT_LOCAL + $SAFE_LIMIT.
+  elif [ "$(echo "${ID_HEIGHT} + ${SAFE_LIMIT}" | ${BC})" -gt "${HEIGHT_LOCAL}" ]; then
+    CHECK_STATUS="LOCKED"
+	CHECK_TEXT="Block: ${HEIGHT_LOCAL}, Unlock set at block ${ID_HEIGHT}"
+    CHECK_PERFDATA="Block=${HEIGHT_LOCAL}, Unlock at ${ID_HEIGHT}"
+	CHECK_RETURN=0
+	
+  fi
+elif [ "${ID_FLAG}" == "2" ]; then
+  # Green, ID is locked with a delay
+  CHECK_STATUS="LOCKED"
+  CHECK_TEXT="Block: ${HEIGHT_LOCAL}, Locked with delay $(echo "${ID_HEIGHT} + 20" | ${BC})"
+  CHECK_PERFDATA="Block=${HEIGHT_LOCAL}, Delay $(echo "${ID_HEIGHT} + 20" | ${BC})"
+  CHECK_RETURN=0
+else
+  CHECK_STATUS="UNKNOWN"
+  CHECK_TEXT="Block: ${HEIGHT_LOCAL}, UNKNOWN."
+  CHECK_PERFDATA="Block=${HEIGHT_LOCAL}, ID UNKNOWN"
+  CHECK_RETURN=3
+fi
+
+# prepare output
+CHECK_NAME="VerusID ${VERUS_ID}"
+
+# output
+echo -n "${CHECK_NAME} ${CHECK_STATUS} - ${CHECK_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_RETURN}
+
+# EOF
+

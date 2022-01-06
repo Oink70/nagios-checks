@@ -1,0 +1,63 @@
+#!/bin/bash -x
+
+# 
+# NAGIOS RETURN CODES
+# -------------------
+#
+# 0: OK
+# 1: WARNING
+# 2: CRITICAL
+# 3: UNKNOWN
+#
+# NAGIOS OUTPUT FORMAT
+# --------------------
+# 
+# "check_name check_status - check_text|check_perfdata"
+#
+# NAGIOS PERFDATA FORMAT
+# ----------------------
+#
+# see https://nagios-plugins.org/doc/guidelines.html#AEN200
+# label=value[UOM];[warn];[crit];[min];[max]
+#
+
+# needed binaries
+CURL=$(which curl)
+JQ=$(which jq)
+VERUS="/home/verus/bin/verus -datadir=/home/verus/.komodo/VRSC"
+
+# collect data
+HASH_LOCAL=$(${VERUS} getbestblockhash)
+HEIGHT_LOCAL=$(${VERUS} getblock ${HASH_LOCAL} 1 | jq -r .height)
+HASH_REMOTE=$(${CURL} --silent "https://explorer.verus.io/api/getblockhash?index=${HEIGHT_LOCAL}" | ${JQ} -r .)
+
+# prepare output
+CHECK_NAME="bestBlockHash VRSC -1-"
+
+# determine status
+# either output empty = unknown
+if [ -z "${HASH_LOCAL}" ] || [ -z "${HASH_REMOTE}" ]; then
+    CHECK_STATUS="UNKNOWN"
+	CHECK_TEXT="Local or Remote unknown"
+	CHECK_PERFDATA="hash_matches=U"
+    CHECK_RETURN=3
+# equal output = OK
+elif [ "${HASH_LOCAL}" == "${HASH_REMOTE}" ]; then
+    CHECK_STATUS="OK"
+	CHECK_TEXT="Local matches Remote"
+	CHECK_PERFDATA="hash_matches=1"
+    CHECK_RETURN=0
+# nonequal output = critical
+else
+   	CHECK_STATUS="CRIT"
+	CHECK_TEXT="Local does not match Remote"
+	CHECK_PERFDATA="hash_matches=0"
+   	CHECK_RETURN=2
+fi
+
+# output
+echo -n "${CHECK_NAME} ${CHECK_STATUS} - ${CHECK_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_RETURN}
+
+# EOF
+

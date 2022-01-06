@@ -1,0 +1,54 @@
+#!/bin/bash -x
+
+# 
+# NAGIOS RETURN CODES
+# -------------------
+#
+# 0: OK
+# 1: WARNING
+# 2: CRITICAL
+# 3: UNKNOWN
+#
+# NAGIOS OUTPUT FORMAT
+# --------------------
+# 
+# "check_name check_status - check_text|check_perfdata"
+#
+# NAGIOS PERFDATA FORMAT
+# ----------------------
+#
+# see https://nagios-plugins.org/doc/guidelines.html#AEN200
+# label=value[UOM];[warn];[crit];[min];[max]
+#
+
+# needed binaries
+AWK=$(which awk)
+CURL=$(which curl)
+JQ=$(which jq)
+BASENAME=$(which basename)
+VERUS="/home/verus/bin/verus -datadir=/home/verus/.komodo/VRSC"
+
+# collect data
+VERSION_GITHUB=$(${BASENAME} `${CURL} -s https://api.github.com/repos/veruscoin/veruscoin/releases/latest | grep "tag_name" | awk '{print "https://github.com/veruscoin/veruscoin/archive/" substr($2, 2, length($2)-3) ".tar.gz"}'` | sed "s/.tar.gz//")
+VERSION_LOCAL=v$(${VERUS} getinfo | ${JQ} -r .VRSCversion)
+
+# prepare output
+CHECK_NAME="Daemon VRSC Version"
+
+# determine status
+CHECK_PERFDATA="version_local=${VERSION_LOCAL} version_github=${VERSION_GITHUB}"
+if [ "${VERSION_LOCAL}" == "${VERSION_GITHUB}" ]; then
+    CHECK_STATUS="OK"
+	CHECK_TEXT="Daemon Version local:${VERSION_LOCAL} matches github:${VERSION_GITHUB}"
+    CHECK_RETURN=0
+else
+	CHECK_STATUS="CRIT"
+	CHECK_TEXT="Daemon Version local:${VERSION_LOCAL} does not match github:${VERSION_GITHUB}"
+	CHECK_RETURN=2
+fi
+
+# output
+echo -n "${CHECK_NAME} ${CHECK_STATUS} - ${CHECK_TEXT}|${CHECK_PERFDATA}"
+exit ${CHECK_RETURN}
+
+# EOF
