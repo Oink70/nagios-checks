@@ -26,7 +26,7 @@ HEIGHT_LOCAL=$($VERUS getblockcount)
 SAFE_LIMIT=1440
 
 #set flag to check for.
-FLAGS=2
+FLAG=2
 
 #process command line parameters
 POSITIONAL=()
