@@ -25,6 +25,9 @@ VERUS="/home/verus/bin/verus -datadir=/home/verus/.komodo/VRSC"
 HEIGHT_LOCAL=$($VERUS getblockcount)
 SAFE_LIMIT=1440
 
+#set flag to check for.
+FLAGS=2
+
 #process command line parameters
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -76,7 +79,7 @@ ID_HEIGHT=$(echo $ID_STATUS | ${JQ} .identity.timelock)
 
 # determine status
 # ID_FLAG == 0 means: a) unlocks at future height, b) is unlocked at passed height
-if [ "${ID_FLAG}" == "0" ]; then
+if [[ $((FLAG&ID_FLAG)) -ne $FLAG ]]; then
   # Red, ID is unlocked. 
   if [ "${ID_HEIGHT}" -lt "${HEIGHT_LOCAL}" ]; then
     CHECK_STATUS="UNLOCKED"
@@ -97,7 +100,7 @@ if [ "${ID_FLAG}" == "0" ]; then
 	CHECK_RETURN=0
 	
   fi
-elif [ "${ID_FLAG}" == "2" ]; then
+elif [[ $((FLAG&ID_FLAG)) -eq $FLAG ]]; then
   # Green, ID is locked with a delay
   CHECK_STATUS="LOCKED"
   CHECK_TEXT="Block: ${HEIGHT_LOCAL}, Locked with delay $(echo "${ID_HEIGHT} + 20" | ${BC})"
